@@ -36,16 +36,16 @@
 - **Node.js & npm/yarn** installed (for frontend)  
 - A SQL Server instance (remote or local) for the backend  
 
-### Running with Docker Compose (Recommended)
-
-1. Clone the repository:
-
-   ```bash
+```bash
    git clone https://github.com/riflosnake/LogVision.git
    ```
    ```bash
    cd LogVision
    ```
+
+### Running with Docker Compose (Recommended)
+
+
    ```bash
    docker-compose up --build
    ```
