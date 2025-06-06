@@ -23,7 +23,6 @@
 | React                   | .NET 9             |
 | TypeScript              | C#                          |
 | Fetch (for API calls)   | Dapper (SQL micro-ORM)       |
-| Chart.js or similar     | Microsoft.Data.SqlClient     |
 
 ---
 
@@ -31,10 +30,27 @@
 
 ### Prerequisites
 
-- Docker (to run with Docker Compose), or  
-- .NET 9 and Node.js with npm (to run backend and frontend individually)  
-- SQL Server (remote or local instance)
+- **Docker & Docker Compose** (recommended for quick setup)  
+- OR  
+- **.NET 9 SDK** installed (for backend)  
+- **Node.js & npm/yarn** installed (for frontend)  
+- A SQL Server instance (remote or local) for the backend  
 
+## Running with Docker Compose (Recommended)
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/riflosnake/LogVision.git
+   ```
+   ```bash
+   cd LogVision
+   ```
+   ```bash
+   docker-compose up --build
+   ```
+   The frontend will be available at http://localhost:3000 (or your configured port)
+   The backend API will be available at http://localhost:8080
 ---
 
 ### Backend Setup
