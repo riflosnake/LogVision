@@ -1,4 +1,5 @@
 using LogInfoApi.Endpoints;
+using LogInfoApi.Options.Log;
 using Microsoft.Extensions.Caching.Hybrid;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +13,8 @@ builder.Services.AddCors(config =>
                           .AllowAnyMethod()
                           .AllowAnyHeader());
 });
+
+builder.Services.AddLogOptions(builder.Configuration);
 
 builder.Services.AddAuthorization();
 
