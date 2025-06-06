@@ -36,7 +36,7 @@
 - **Node.js & npm/yarn** installed (for frontend)  
 - A SQL Server instance (remote or local) for the backend  
 
-## Running with Docker Compose (Recommended)
+### Running with Docker Compose (Recommended)
 
 1. Clone the repository:
 
@@ -52,6 +52,25 @@
    The frontend will be available at http://localhost:3000 (or your configured port)
    The backend API will be available at http://localhost:8080
 ---
+
+### Running manually
+```bash
+   cd backend
+   ```
+```bash
+   dotnet run
+   ```
+```bash
+   cd ../frontend
+   ```
+```bash
+   npm install
+   ```
+```bash
+   npm run dev
+   ```
+The frontend will be available at http://localhost:5173 (or your configured port)
+The backend API will be available at http://localhost:8080
 
 ### Backend Setup
 
