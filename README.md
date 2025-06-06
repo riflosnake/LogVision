@@ -37,38 +37,38 @@
 - A SQL Server instance (remote or local) for the backend  
 
 ```bash
-   git clone https://github.com/riflosnake/LogVision.git
-   ```
-   ```bash
-   cd LogVision
-   ```
+git clone https://github.com/riflosnake/LogVision.git
+```
+```bash
+cd LogVision
+```
 
 ### Running with Docker Compose (Recommended)
 
 
-   ```bash
-   docker-compose up --build
-   ```
-   The frontend will be available at http://localhost:3000 (or your configured port)
-   The backend API will be available at http://localhost:8080
+```bash
+docker-compose up --build
+```
+The frontend will be available at http://localhost:3000 (or your configured port)
+The backend API will be available at http://localhost:8080
 ---
 
 ### Running manually
 ```bash
-   cd backend
-   ```
+cd backend
+```
 ```bash
-   dotnet run
-   ```
+dotnet run
+```
 ```bash
-   cd ../frontend
-   ```
+cd ../frontend
+```
 ```bash
-   npm install
-   ```
+npm install
+```
 ```bash
-   npm run dev
-   ```
+npm run dev
+```
 The frontend will be available at http://localhost:5173 (or your configured port)
 The backend API will be available at http://localhost:8080
 
