@@ -2,6 +2,7 @@
 
 **LogVision** is a powerful web application built with React (TypeScript) and .NET that visualizes logs from various sources, enabling developers and teams to analyze and monitor application events with ease.
 
+![Image](https://github.com/user-attachments/assets/0ab79f97-7950-4666-889f-635ca5a91e83)
 ---
 
 ## 🚀 Features
