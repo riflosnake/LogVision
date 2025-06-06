@@ -51,6 +51,7 @@ docker-compose up --build
 ```
 The frontend will be available at http://localhost:3000 (or your configured port)
 The backend API will be available at http://localhost:8080
+
 ---
 
 ### Running manually
