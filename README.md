@@ -13,6 +13,7 @@
 - **Caching:** Backend caching for improved performance.
   - `stale-while-revalidating` cache pattern for chart data. Traded a bit of staleness for snappier feel.
 - [**Extensible Configuration**](#backend-setup): Customize log table mappings via `appsettings` without code changes.
+  - Supports ANSI SQL-compliant relational database systems
 - **Modern Tech Stack:** React + TypeScript frontend paired with a .NET backend API.
 
 ---
