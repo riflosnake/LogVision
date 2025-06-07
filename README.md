@@ -12,7 +12,7 @@
 - **Time Series Charts:** Visualize log frequency and severity trends over time.
 - **Caching:** Backend caching for improved performance.
   - `stale-while-revalidating` cache pattern for chart data. Traded a bit of staleness for snappier feel.
-- **Extensible Configuration:** Customize log table mappings via appsettings without code changes.
+- [**Extensible Configuration**](#backend-setup): Customize log table mappings via `appsettings` without code changes.
 - **Modern Tech Stack:** React + TypeScript frontend paired with a .NET backend API.
 
 ---
