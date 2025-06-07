@@ -1,3 +1,4 @@
+using LogInfoApi.Cache;
 using LogInfoApi.Endpoints;
 using LogInfoApi.Options.Log;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -30,6 +31,8 @@ builder.Services.AddHybridCache(options =>
         Expiration = TimeSpan.FromMilliseconds(1_999),
     };
 });
+
+builder.Services.AddSingleton<SwrCache>();
 
 var app = builder.Build();
 
