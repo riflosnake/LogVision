@@ -11,6 +11,7 @@
 - **Advanced Filtering:** Filter logs by severity, date range, search terms, and pagination.
 - **Time Series Charts:** Visualize log frequency and severity trends over time.
 - **Caching:** Backend caching for improved performance.
+  - Stale-while-revalidating cache pattern for chart data. Traded a bit of staleness for snappier feel.
 - **Extensible Configuration:** Customize log table mappings via appsettings without code changes.
 - **Modern Tech Stack:** React + TypeScript frontend paired with a .NET backend API.
 
@@ -22,7 +23,7 @@
 |-------------------------|------------------------------|
 | React                   | .NET 9             |
 | TypeScript              | C#                          |
-| Fetch (for API calls)   | Dapper (SQL micro-ORM)       |
+| Tailwind   | Dapper (for lowest overhead)       |
 
 ---
 
