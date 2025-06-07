@@ -9,27 +9,26 @@ namespace LogInfoApi.Endpoints;
 
 public static partial class LogsEndpoints
 {
-    public static Func<ChartFilters, IConfiguration, HybridCache, IOptions<LogOptions>, Task<IResult>> GetLogTimeseries()
+    public static async Task<IResult> GetLogTimeseries(
+        ChartFilters filters,
+        IOptions<LogOptions> options,
+        IConfiguration configuration,
+        HybridCache cache)
     {
-        return async (ChartFilters filter, IConfiguration configuration, HybridCache cache, IOptions<LogOptions> options) =>
-        {
-            if (filter == null || filter.TimeRange <= 0)
-                return Results.BadRequest("Invalid filter or TimeRange.");
+        if (filters == null || filters.TimeRange <= 0)
+            return Results.BadRequest("Invalid filter or TimeRange.");
 
-            CalculateGraph(filter, out var bucketSize, out var start, out var end);
+        CalculateGraph(filters, out var bucketSize, out var start, out var end);
 
-            var logOptions = options.Value;
+        var logOptions = options.Value;
 
-            if (logOptions == null)
-                return Results.BadRequest("LogSettings configuration section missing.");
+        var tableName = logOptions.TableName;
 
-            var tableName = logOptions.TableName;
-            var tsCol = logOptions.Columns.Timestamp;
-            var sevCol = logOptions.Columns.Severity;
+        var timestampColumn = logOptions.Columns.Timestamp;
+        var severityColumn = logOptions.Columns.Severity;
+        var severityMapping = logOptions.SeverityValues ?? [];
 
-            var severityMapping = logOptions.SeverityValues ?? [];
-
-            var sql = $@"
+        var sql = $@"
             ;WITH TimeBuckets AS (
                 SELECT @Start AS BucketTime
                 UNION ALL
@@ -41,27 +40,27 @@ public static partial class LogsEndpoints
                 SELECT
                     DATEADD(
                         MINUTE,
-                        DATEDIFF(MINUTE, 0, {tsCol}) / @BucketSize * @BucketSize,
+                        DATEDIFF(MINUTE, 0, {timestampColumn}) / @BucketSize * @BucketSize,
                         0
                     ) AS BucketTime,
-                    LOWER({sevCol}) AS Severity
+                    LOWER({severityColumn}) AS Severity
                 FROM {tableName}
-                WHERE {tsCol} >= @Start AND {tsCol} <= @End
+                WHERE {timestampColumn} >= @Start AND {timestampColumn} <= @End
                 /** SeverityFilter **/
             )
             SELECT
                 CONVERT(VARCHAR, tb.BucketTime, 126) AS [Time],";
 
-            foreach (var sev in new[] { "Error", "Warning", "Information", "Debug" })
-            {
-                var sevVal = severityMapping.GetValueOrDefault(sev, sev.ToLower());
-                sql += $@"
+        foreach (var sev in new[] { "Error", "Warning", "Information", "Debug" })
+        {
+            var sevVal = severityMapping.GetValueOrDefault(sev, sev.ToLower());
+            sql += $@"
                 ISNULL(SUM(CASE WHEN fl.Severity = '{sevVal}' THEN 1 ELSE 0 END), 0) AS {sev}s,";
-            }
+        }
 
-            sql = sql.TrimEnd(',');
+        sql = sql.TrimEnd(',');
 
-            sql += @"
+        sql += @"
             FROM TimeBuckets tb
             LEFT JOIN FilteredLogs fl ON tb.BucketTime = fl.BucketTime
             GROUP BY tb.BucketTime
@@ -69,29 +68,28 @@ public static partial class LogsEndpoints
             OPTION (MAXRECURSION 0);
         ";
 
-            var parameters = new DynamicParameters();
-            parameters.Add("@Start", start);
-            parameters.Add("@End", end);
-            parameters.Add("@BucketSize", bucketSize);
+        var parameters = new DynamicParameters();
 
-            if (filter.Severity?.Count > 0)
-            {
-                sql = sql.Replace("/** SeverityFilter **/", $"AND LOWER({sevCol}) IN @Severities");
-                parameters.Add("@Severities", filter.Severity.Select(s => s.ToString().ToLower()).ToArray());
-            }
-            else
-            {
-                sql = sql.Replace("/** SeverityFilter **/", "");
-            }
+        parameters.Add("@Start", start);
+        parameters.Add("@End", end);
+        parameters.Add("@BucketSize", bucketSize);
 
-            await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
+        if (filters.Severity?.Count > 0)
+        {
+            sql = sql.Replace("/** SeverityFilter **/", $"AND LOWER({severityColumn}) IN @Severities");
+            parameters.Add("@Severities", filters.Severity.Select(s => s.ToString().ToLower()).ToArray());
+        }
+        else
+        {
+            sql = sql.Replace("/** SeverityFilter **/", "");
+        }
 
-            var result = (await connection.QueryAsync<TimeSeriesDataDto>(sql, parameters)).ToList();
+        await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
 
-            return Results.Ok(result);
-        };
+        var result = (await connection.QueryAsync<TimeSeriesDataDto>(sql, parameters)).ToList();
+
+        return Results.Ok(result);
     }
-
 
     private static void CalculateGraph(ChartFilters filter, out int bucketSize, out DateTime start, out DateTime end)
     {

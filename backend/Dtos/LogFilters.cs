@@ -11,7 +11,7 @@ public class LogFilters
 
     public string ToCacheKey()
     {
-        var severityPart = Severity != null && Severity.Any()
+        var severityPart = Severity.Count != 0
             ? string.Join("-", Severity.Select(s => s.ToLowerInvariant()).OrderBy(s => s))
             : "none";
 

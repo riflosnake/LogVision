@@ -9,68 +9,66 @@ namespace LogInfoApi.Endpoints;
 
 public static partial class LogsEndpoints
 {
-    public static Func<ChartFilters, IConfiguration, HybridCache, IOptions<LogOptions>, Task<IResult>> GetLogTypes()
+    public static async Task<IResult> GetLogTypes(
+        ChartFilters filters,
+        IOptions<LogOptions> options,
+        IConfiguration configuration,
+        HybridCache cache)
     {
-        return async (ChartFilters filter, IConfiguration configuration, HybridCache cache, IOptions<LogOptions> options) =>
-        {
-            if (filter == null)
-                return Results.BadRequest("Filter cannot be null.");
+        if (filters == null)
+            return Results.BadRequest("Filter cannot be null.");
 
-            var logOptions = options.Value;
+        var logOptions = options.Value;
 
-            if (logOptions == null)
-                return Results.BadRequest("LogSettings configuration section missing.");
+        var tableName = logOptions.TableName;
 
-            var tableName = logOptions.TableName;
-            var tsCol = logOptions.Columns.Timestamp;
-            var sevCol = logOptions.Columns.Severity;
+        var timestampColumn = logOptions.Columns.Timestamp;
+        var severityColumn = logOptions.Columns.Severity;
+        var titleColumn = logOptions.Columns.Title;
 
-            var titleCol = logOptions.Columns.Title;
+        var result = await cache.GetOrCreateAsync(
+            key: $"types-{filters.ToCacheKey()}",
+            factory: async (ct) =>
+            {
+                var sql = $@"
+                    SELECT TOP 10
+                        CASE WHEN {titleColumn} IS NULL OR {titleColumn} = '' THEN 'N/A' ELSE {titleColumn} END AS Type,
+                        {severityColumn} AS Severity,
+                        COUNT(*) AS Count
+                    FROM {tableName}
+                    WHERE 1 = 1
+                    ";
 
-            var result = await cache.GetOrCreateAsync(
-                key: $"types-{filter.ToCacheKey()}",
-                factory: async (ct) =>
+                var parameters = new DynamicParameters();
+
+                if (filters.Severity?.Count > 0)
                 {
-                    await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
+                    sql += $" AND LOWER({severityColumn}) IN @Severities";
+                    parameters.Add("@Severities", filters.Severity.Select(s => s.ToLowerInvariant()).ToArray());
+                }
 
-                    var sql = $@"
-                SELECT TOP 10
-                    CASE WHEN {titleCol} IS NULL OR {titleCol} = '' THEN 'N/A' ELSE {titleCol} END AS Type,
-                    {sevCol} AS Severity,
-                    COUNT(*) AS Count
-                FROM {tableName}
-                WHERE 1 = 1
-                ";
+                if (filters.TimeRange > 0)
+                {
+                    var now = DateTime.Now;
+                    var cutoff = now.AddMinutes(-filters.TimeRange);
 
-                    var parameters = new DynamicParameters();
+                    sql += $" AND {timestampColumn} >= @Cutoff AND {timestampColumn} <= @Now";
+                    parameters.Add("@Cutoff", cutoff);
+                    parameters.Add("@Now", now);
+                }
 
-                    if (filter.Severity?.Count > 0)
-                    {
-                        sql += $" AND LOWER({sevCol}) IN @Severities";
-                        parameters.Add("@Severities", filter.Severity.Select(s => s.ToLowerInvariant()).ToArray());
-                    }
+                sql += $@"
+                    GROUP BY 
+                        CASE WHEN {titleColumn} IS NULL OR {titleColumn} = '' THEN 'N/A' ELSE {titleColumn} END,
+                        {severityColumn}
+                    ORDER BY Count DESC";
 
-                    if (filter.TimeRange > 0)
-                    {
-                        var now = DateTime.Now;
-                        var cutoff = now.AddMinutes(-filter.TimeRange);
+                await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
 
-                        sql += $" AND {tsCol} >= @Cutoff AND {tsCol} <= @Now";
-                        parameters.Add("@Cutoff", cutoff);
-                        parameters.Add("@Now", now);
-                    }
+                return (await connection.QueryAsync<LogTypeCountDto>(sql, parameters)).ToList();
+            },
+            options: null);
 
-                    sql += $@"
-                GROUP BY 
-                    CASE WHEN {titleCol} IS NULL OR {titleCol} = '' THEN 'N/A' ELSE {titleCol} END,
-                    {sevCol}
-                ORDER BY Count DESC";
-
-                    return (await connection.QueryAsync<LogTypeCountDto>(sql, parameters)).ToList();
-                },
-                options: null);
-
-            return Results.Ok(result);
-        };
+        return Results.Ok(result);
     }
 }

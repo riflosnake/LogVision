@@ -10,82 +10,82 @@ namespace LogInfoApi.Endpoints;
 
 public static partial class LogsEndpoints
 {
-    public static Func<LogFilters, IOptions<LogOptions>, IConfiguration, HybridCache, Task<IResult>> GetLogs()
+    public static async Task<IResult> GetLogs(
+        LogFilters filters,
+        IOptions<LogOptions> options,
+        IConfiguration configuration,
+        HybridCache cache)
     {
-        return async (LogFilters filter, IOptions<LogOptions> logOptionsAccessor, IConfiguration configuration, HybridCache cache) =>
-        {
-            if (filter == null)
-                return Results.BadRequest("Filter is required.");
+        if (filters is null)
+            return Results.BadRequest("Filter is required.");
 
-            var options = logOptionsAccessor.Value;
-            var cols = options.Columns;
+        var logOptions = options.Value;
+        var columns = logOptions.Columns;
 
-            var logs = await cache.GetOrCreateAsync(
-                key: filter.ToCacheKey(),
-                factory: async (ct) =>
+        var logs = await cache.GetOrCreateAsync(
+            key: filters.ToCacheKey(),
+            factory: async (ct) =>
+            {
+                var sql = new StringBuilder($@"
+                SELECT 
+                    CAST({columns.Id} AS VARCHAR) AS Id,
+                    {columns.Timestamp} AS Timestamp,
+                    ISNULL({columns.Message}, '') AS Message,
+                    CASE WHEN {columns.Title} IS NULL OR {columns.Title} = '' THEN 'N/A' ELSE {columns.Title} END AS Type,
+                    {columns.Severity} AS Severity,
+                    {columns.Machine} AS Machine,
+                    ISNULL({columns.StackTrace}, '') AS StackTrace,
+                    {columns.ApplicationName} AS ApplicationName,
+                    {columns.Source} AS Source,
+                    NULL AS Count
+                FROM {logOptions.TableName}
+                WHERE 1 = 1
+            ");
+
+                var parameters = new DynamicParameters();
+
+                if (!string.IsNullOrWhiteSpace(filters.SearchTerm))
                 {
-                    await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
+                    sql.AppendLine($"AND {columns.Message} LIKE @SearchTerm");
+                    parameters.Add("@SearchTerm", $"%{filters.SearchTerm}%");
+                }
 
-                    var sql = new StringBuilder($@"
-                    SELECT 
-                        CAST({cols.Id} AS VARCHAR) AS Id,
-                        {cols.Timestamp} AS Timestamp,
-                        ISNULL({cols.Message}, '') AS Message,
-                        CASE WHEN {cols.Title} IS NULL OR {cols.Title} = '' THEN 'N/A' ELSE {cols.Title} END AS Type,
-                        {cols.Severity} AS Severity,
-                        {cols.Machine} AS Machine,
-                        ISNULL({cols.StackTrace}, '') AS StackTrace,
-                        {cols.ApplicationName} AS ApplicationName,
-                        {cols.Source} AS Source,
-                        NULL AS Count
-                    FROM {options.TableName}
-                    WHERE 1 = 1
-                ");
+                if (filters.Severity?.Count > 0)
+                {
+                    sql.AppendLine($"AND LOWER({columns.Severity}) IN @Severities");
 
-                    var parameters = new DynamicParameters();
+                    var mapped = filters.Severity
+                        .Select(s => s.ToString().ToLower())
+                        .Select(s => logOptions.SeverityValues?.TryGetValue(s, out var mappedVal) == true ? mappedVal.ToLower() : s)
+                        .ToArray();
 
-                    if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
-                    {
-                        sql.AppendLine($"AND {cols.Message} LIKE @SearchTerm");
-                        parameters.Add("@SearchTerm", $"%{filter.SearchTerm}%");
-                    }
+                    parameters.Add("@Severities", mapped);
+                }
 
-                    if (filter.Severity?.Count > 0)
-                    {
-                        sql.AppendLine($"AND LOWER({cols.Severity}) IN @Severities");
+                if (DateTime.TryParse(filters.FromDate, out var from))
+                {
+                    sql.AppendLine($"AND {columns.Timestamp} >= @FromDate");
+                    parameters.Add("@FromDate", from);
+                }
 
-                        var mapped = filter.Severity
-                            .Select(s => s.ToString().ToLower())
-                            .Select(s => options.SeverityValues?.TryGetValue(s, out var mappedVal) == true ? mappedVal.ToLower() : s)
-                            .ToArray();
+                if (DateTime.TryParse(filters.ToDate, out var to))
+                {
+                    sql.AppendLine($"AND {columns.Timestamp} <= @ToDate");
+                    parameters.Add("@ToDate", to);
+                }
 
-                        parameters.Add("@Severities", mapped);
-                    }
+                var skip = Math.Max((filters.Page - 1) * filters.PageSize, 0);
+                var take = Math.Clamp(filters.PageSize, 1, 500);
 
-                    if (DateTime.TryParse(filter.FromDate, out var from))
-                    {
-                        sql.AppendLine($"AND {cols.Timestamp} >= @FromDate");
-                        parameters.Add("@FromDate", from);
-                    }
+                sql.AppendLine($"ORDER BY {columns.Timestamp} DESC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY");
+                parameters.Add("@Skip", skip);
+                parameters.Add("@Take", take);
 
-                    if (DateTime.TryParse(filter.ToDate, out var to))
-                    {
-                        sql.AppendLine($"AND {cols.Timestamp} <= @ToDate");
-                        parameters.Add("@ToDate", to);
-                    }
+                await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
+                return (await connection.QueryAsync<LogEntryDto>(sql.ToString(), parameters)).ToList();
+            },
+            options: null);
 
-                    var skip = Math.Max((filter.Page - 1) * filter.PageSize, 0);
-                    var take = Math.Clamp(filter.PageSize, 1, 500);
-
-                    sql.AppendLine($"ORDER BY {cols.Timestamp} DESC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY");
-                    parameters.Add("@Skip", skip);
-                    parameters.Add("@Take", take);
-
-                    return (await connection.QueryAsync<LogEntryDto>(sql.ToString(), parameters)).ToList();
-                },
-                options: null);
-
-            return Results.Ok(logs);
-        };
+        return Results.Ok(logs);
     }
 }
