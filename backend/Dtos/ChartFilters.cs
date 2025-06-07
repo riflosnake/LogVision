@@ -5,12 +5,12 @@ public class ChartFilters
     public List<string> Severity { get; set; } = [];
     public int TimeRange { get; set; }
 
-    public string ToCacheKey()
+    public string ToCacheKey(string chartType)
     {
         var severityPart = Severity.Count != 0
             ? string.Join("-", Severity.Select(s => s.ToLowerInvariant()).OrderBy(s => s))
             : "none";
 
-        return $"severity:{severityPart}_timerange:{TimeRange}";
+        return $"type:{chartType}_severity:{severityPart}_timerange:{TimeRange}";
     }
 }
