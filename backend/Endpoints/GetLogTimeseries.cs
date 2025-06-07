@@ -18,21 +18,38 @@ public static partial class LogsEndpoints
         if (filters is null || filters.TimeRange <= 0)
             return Results.BadRequest("Invalid filter or TimeRange.");
 
+        var cacheOptions = options.Value.CacheOptions.GetLogTimeseries;
+
+        if (!cacheOptions.IsEnabled)
+        {
+            return Results.Ok(await GetLogsTimeseriesAsync(filters, options, configuration));
+        }
+
         var result = await swrCache.GetOrSaveAsync(
             key: filters.ToCacheKey(nameof(GetLogTimeseries)),
-            factory: async (ct) =>
-            {
-                CalculateGraph(filters, out var bucketSize, out var start, out var end);
+            factory: async (ct) => await GetLogsTimeseriesAsync(filters, options, configuration),
+            validExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Stale),
+            totalExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Total));
 
-                var logOptions = options.Value;
+        return Results.Ok(result);
+    }
 
-                var tableName = logOptions.TableName;
+    private static async Task<List<TimeSeriesDataDto>> GetLogsTimeseriesAsync(
+        ChartFilters filters,
+        IOptions<LogOptions> options,
+        IConfiguration configuration)
+    {
+        CalculateGraph(filters, out var bucketSize, out var start, out var end);
 
-                var timestampColumn = logOptions.Columns.Timestamp;
-                var severityColumn = logOptions.Columns.Severity;
-                var severityMapping = logOptions.SeverityValues ?? [];
+        var logOptions = options.Value;
 
-                var sql = $@"
+        var tableName = logOptions.TableName;
+
+        var timestampColumn = logOptions.Columns.Timestamp;
+        var severityColumn = logOptions.Columns.Severity;
+        var severityMapping = logOptions.SeverityValues ?? [];
+
+        var sql = $@"
                 ;WITH TimeBuckets AS (
                     SELECT @Start AS BucketTime
                     UNION ALL
@@ -55,16 +72,16 @@ public static partial class LogsEndpoints
                 SELECT
                     CONVERT(VARCHAR, tb.BucketTime, 126) AS [Time],";
 
-                foreach (var sev in new[] { "Error", "Warning", "Information", "Debug" })
-                {
-                    var sevVal = severityMapping.GetValueOrDefault(sev, sev.ToLower());
-                    sql += $@"
+        foreach (var sev in new[] { "Error", "Warning", "Information", "Debug" })
+        {
+            var sevVal = severityMapping.GetValueOrDefault(sev, sev.ToLower());
+            sql += $@"
                             ISNULL(SUM(CASE WHEN fl.Severity = '{sevVal}' THEN 1 ELSE 0 END), 0) AS {sev}s,";
-                }
+        }
 
-                sql = sql.TrimEnd(',');
+        sql = sql.TrimEnd(',');
 
-                sql += @"
+        sql += @"
                 FROM TimeBuckets tb
                 LEFT JOIN FilteredLogs fl ON tb.BucketTime = fl.BucketTime
                 GROUP BY tb.BucketTime
@@ -72,30 +89,25 @@ public static partial class LogsEndpoints
                 OPTION (MAXRECURSION 0);
                 ";
 
-                var parameters = new DynamicParameters();
+        var parameters = new DynamicParameters();
 
-                parameters.Add("@Start", start);
-                parameters.Add("@End", end);
-                parameters.Add("@BucketSize", bucketSize);
+        parameters.Add("@Start", start);
+        parameters.Add("@End", end);
+        parameters.Add("@BucketSize", bucketSize);
 
-                if (filters.Severity?.Count > 0)
-                {
-                    sql = sql.Replace("/** SeverityFilter **/", $"AND LOWER({severityColumn}) IN @Severities");
-                    parameters.Add("@Severities", filters.Severity.Select(s => s.ToString().ToLower()).ToArray());
-                }
-                else
-                {
-                    sql = sql.Replace("/** SeverityFilter **/", "");
-                }
+        if (filters.Severity?.Count > 0)
+        {
+            sql = sql.Replace("/** SeverityFilter **/", $"AND LOWER({severityColumn}) IN @Severities");
+            parameters.Add("@Severities", filters.Severity.Select(s => s.ToString().ToLower()).ToArray());
+        }
+        else
+        {
+            sql = sql.Replace("/** SeverityFilter **/", "");
+        }
 
-                await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
+        await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
 
-                return (await connection.QueryAsync<TimeSeriesDataDto>(sql, parameters)).ToList();
-            },
-            validExpirationTimeSpan: TimeSpan.FromSeconds(2),
-            totalExpirationTimeSpan: TimeSpan.FromMinutes(1));
-
-        return Results.Ok(result);
+        return (await connection.QueryAsync<TimeSeriesDataDto>(sql, parameters)).ToList();
     }
 
     private static void CalculateGraph(ChartFilters filter, out int bucketSize, out DateTime start, out DateTime end)

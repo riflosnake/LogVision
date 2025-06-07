@@ -21,13 +21,15 @@ public static partial class LogsEndpoints
 
         List<LogEntryDto> logs = [];
 
-        if (filters.ShouldCache(out var cacheKey))
+        var cacheOptions = options.Value.CacheOptions.GetLogs;
+
+        if (filters.ShouldCache(out var cacheKey) && cacheOptions.IsEnabled)
         {
             logs = await swrCache.GetOrSaveAsync(
                 key: cacheKey,
                 factory: async (ct) => await SearchLogsAsync(filters, options, configuration),
-                validExpirationTimeSpan: TimeSpan.FromSeconds(2),
-                totalExpirationTimeSpan: TimeSpan.FromMinutes(1));
+                validExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Stale),
+                totalExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Total));
         }
 
         logs = logs.Count == 0
