@@ -25,6 +25,10 @@ const TopLogTypes: React.FC<TopLogTypesProps> = ({ data, isLoading }) => {
             Loading top log types...
           </div>
         </div>
+      ) : data.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center text-gray-400">
+          No log types available.
+        </div>
       ) : (
         <div className="flex-1 overflow-y-auto pr-2 scrollbar-thin">
           <div className="space-y-3">
