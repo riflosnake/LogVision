@@ -23,7 +23,8 @@
 |-------------------------|------------------------------|
 | React                   | .NET 9             |
 | TypeScript              | C#                          |
-| Tailwind   | Dapper (for lowest overhead)       |
+| Tailwind   | Minimal APIs and
+ Dapper (for lowest overhead)       |
 
 ---
 
