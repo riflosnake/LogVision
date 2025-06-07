@@ -83,6 +83,6 @@ public static partial class LogsEndpoints
 
         await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
 
-        return (await connection.QueryAsync<LogTypeCountDto>(sql, parameters)).ToList();
+        return [.. await connection.QueryAsync<LogTypeCountDto>(sql, parameters)];
     }
 }

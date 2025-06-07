@@ -72,11 +72,10 @@ public static partial class LogsEndpoints
                 SELECT
                     CONVERT(VARCHAR, tb.BucketTime, 126) AS [Time],";
 
-        foreach (var sev in new[] { "Error", "Warning", "Information", "Debug" })
+        foreach (var severity in new[] { "Error", "Warning", "Information", "Debug" })
         {
-            var sevVal = severityMapping.GetValueOrDefault(sev, sev.ToLower());
-            sql += $@"
-                            ISNULL(SUM(CASE WHEN fl.Severity = '{sevVal}' THEN 1 ELSE 0 END), 0) AS {sev}s,";
+            var severityValue = severityMapping.GetValueOrDefault(severity, severity.ToLower());
+            sql += $@"ISNULL(SUM(CASE WHEN fl.Severity = '{severityValue}' THEN 1 ELSE 0 END), 0) AS {severity}s,";
         }
 
         sql = sql.TrimEnd(',');
@@ -107,7 +106,7 @@ public static partial class LogsEndpoints
 
         await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
 
-        return (await connection.QueryAsync<TimeSeriesDataDto>(sql, parameters)).ToList();
+        return [.. await connection.QueryAsync<TimeSeriesDataDto>(sql, parameters)];
     }
 
     private static void CalculateGraph(ChartFilters filter, out int bucketSize, out DateTime start, out DateTime end)
