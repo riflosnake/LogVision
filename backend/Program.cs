@@ -40,9 +40,9 @@ app.UseCors("log-api-policy");
 
 app.UseResponseCompression();
 
-app.MapPost("/logs", LogsEndpoints.GetLogs());
-app.MapPost("/logs/timeseries", LogsEndpoints.GetLogTimeseries());
-app.MapPost("/logs/types", LogsEndpoints.GetLogTypes());
+app.MapPost("/logs", LogsEndpoints.GetLogs);
+app.MapPost("/logs/timeseries", LogsEndpoints.GetLogTimeseries);
+app.MapPost("/logs/types", LogsEndpoints.GetLogTypes);
 
 app.UseHttpsRedirection();
 
