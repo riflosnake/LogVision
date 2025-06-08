@@ -17,16 +17,11 @@ export async function fetchLogs(filters: LogFilters): Promise<LogEntry[]> {
   try {
     const response = await fetch(`${baseUrl}/logs`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(filters),
     });
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch logs");
-    }
-
+    if (!response.ok) throw new Error("Failed to fetch logs");
     return await response.json();
   } catch (error) {
     console.error("Error fetching logs:", error);
@@ -41,16 +36,11 @@ export async function fetchTimeSeriesData(
   try {
     const response = await fetch(`${baseUrl}/logs/timeseries`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(filters),
     });
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch time series data");
-    }
-
+    if (!response.ok) throw new Error("Failed to fetch time series data");
     return await response.json();
   } catch (error) {
     console.error("Error fetching time series data:", error);
@@ -65,16 +55,11 @@ export async function fetchTopLogTypes(
   try {
     const response = await fetch(`${baseUrl}/logs/types`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify(filters),
     });
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch top log types");
-    }
-
+    if (!response.ok) throw new Error("Failed to fetch top log types");
     return await response.json();
   } catch (error) {
     console.error("Error fetching top log types:", error);
