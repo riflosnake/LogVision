@@ -29,7 +29,6 @@ interface LogState {
 
   // Actions
   setLogs: (logs: LogEntry[]) => void;
-  setFilteredLogs: (logs: LogEntry[]) => void;
   setTimeSeriesData: (data: TimeSeriesData[]) => void;
   setTopLogTypes: (data: LogTypeCount[]) => void;
   setIsLoading: (isLoading: boolean) => void;
@@ -68,7 +67,6 @@ export const useLogStore = create<LogState>((set) => ({
   error: null,
 
   setLogs: (logs) => set({ logs }),
-  setFilteredLogs: (filteredLogs) => set({ filteredLogs }),
   setTimeSeriesData: (timeSeriesData) => set({ timeSeriesData }),
   setTopLogTypes: (topLogTypes) => set({ topLogTypes }),
   setIsLoading: (isLoading) => set({ isLoading }),

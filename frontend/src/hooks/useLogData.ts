@@ -6,14 +6,13 @@ import {
   fetchTimeSeriesData,
   fetchTopLogTypes,
 } from "../services/api";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 
 export function useLogData() {
   const {
     chartFilters,
     logFilters,
     setLogs,
-    setFilteredLogs,
     setTimeSeriesData,
     setTopLogTypes,
     isPaused,
@@ -44,12 +43,19 @@ export function useLogData() {
     staleTime: 2_000,
   });
 
+  const refetchAll = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["logs"] }),
+      queryClient.invalidateQueries({ queryKey: ["timeSeries"] }),
+      queryClient.invalidateQueries({ queryKey: ["topLogTypes"] }),
+    ]);
+  }, [queryClient]);
+
   useEffect(() => {
     if (logsQuery.data) {
       setLogs(logsQuery.data);
-      setFilteredLogs(logsQuery.data);
     }
-  }, [logsQuery.data, setFilteredLogs, setLogs]);
+  }, [logsQuery.data, setLogs]);
 
   useEffect(() => {
     if (timeSeriesQuery.data) {
@@ -62,14 +68,6 @@ export function useLogData() {
       setTopLogTypes(topTypesQuery.data);
     }
   }, [setTopLogTypes, topTypesQuery.data]);
-
-  const refetchAll = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["logs"] }),
-      queryClient.invalidateQueries({ queryKey: ["timeSeries"] }),
-      queryClient.invalidateQueries({ queryKey: ["topLogTypes"] }),
-    ]);
-  };
 
   return {
     logs: logsQuery.data,
