@@ -1,6 +1,6 @@
 # LogVision
 
-**LogVision** is a powerful web application built with React (TypeScript) and .NET that visualizes logs from various sources, enabling developers and teams to analyze and monitor application events with ease.
+**LogVision** is a powerful web application built with React (TypeScript) and .NET that visualizes logs from certain log table in database, enabling developers and teams to analyze and monitor application events with ease.
 
 ![Image](https://github.com/user-attachments/assets/0ab79f97-7950-4666-889f-635ca5a91e83)
 ---
@@ -11,7 +11,9 @@
 - **Advanced Filtering:** Filter logs by severity, date range, search terms, and pagination.
 - **Time Series Charts:** Visualize log frequency and severity trends over time.
 - **Caching:** Backend caching for improved performance.
-- **Extensible Configuration:** Customize log table mappings via appsettings without code changes.
+  - `stale-while-revalidating` cache pattern for chart data. Traded a bit of staleness for snappier feel.
+- [**Extensible Configuration**](#backend-setup): Customize log table mappings via `appsettings` without code changes.
+  - Supports ANSI SQL-compliant relational database systems.
 - **Modern Tech Stack:** React + TypeScript frontend paired with a .NET backend API.
 
 ---
@@ -22,7 +24,7 @@
 |-------------------------|------------------------------|
 | React                   | .NET 9             |
 | TypeScript              | C#                          |
-| Fetch (for API calls)   | Dapper (SQL micro-ORM)       |
+| Tailwind   | Minimal APIs and Dapper (for lowest overhead)       |
 
 ---
 

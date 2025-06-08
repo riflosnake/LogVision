@@ -14,7 +14,7 @@ const severityOptions: { value: LogSeverity; label: string; color: string }[] =
 
 const LogFilters: React.FC = () => {
   const { logFilters, setLogFilters } = useLogStore();
-  const { fetchLogData } = useLogData();
+  const { refetchLogs } = useLogData();
 
   const handleSeverityToggle = (severity: LogSeverity) => {
     const newSeverities = logFilters.severity.includes(severity)
@@ -37,7 +37,7 @@ const LogFilters: React.FC = () => {
   };
 
   const handleApplyFilters = () => {
-    fetchLogData();
+    refetchLogs();
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {

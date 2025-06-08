@@ -12,13 +12,21 @@ import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const Dashboard: React.FC = () => {
-  const { filteredLogs, timeSeriesData, topLogTypes, isLoading, fetchAllData } =
-    useLogData();
+  const {
+    logs,
+    timeSeriesData,
+    topLogTypes,
+    isLogsQueryLoading,
+    isTimeSeriesQueryLoading,
+    isTopTypesQueryLoading,
+    refetchAll,
+  } = useLogData();
+
   const { setIsPaused } = useLogStore();
 
   const handleRefresh = () => {
-    setIsPaused(true); // Pause automatic updates
-    fetchAllData().then(() => {
+    setIsPaused(true);
+    refetchAll().then(() => {
       toast.success("Data refreshed successfully!");
     });
   };
@@ -36,10 +44,16 @@ const Dashboard: React.FC = () => {
         {/* Charts Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
           <div className="lg:col-span-2">
-            <LogChart data={timeSeriesData} isLoading={isLoading} />
+            <LogChart
+              data={timeSeriesData ?? []}
+              isLoading={isTimeSeriesQueryLoading}
+            />
           </div>
           <div>
-            <TopLogTypes data={topLogTypes} isLoading={isLoading} />
+            <TopLogTypes
+              data={topLogTypes ?? []}
+              isLoading={isTopTypesQueryLoading}
+            />
           </div>
         </div>
 
@@ -50,7 +64,7 @@ const Dashboard: React.FC = () => {
 
         {/* Log Table */}
         <div className="mb-6">
-          <LogTable logs={filteredLogs} isLoading={isLoading} />
+          <LogTable logs={logs ?? []} isLoading={isLogsQueryLoading} />
         </div>
       </main>
 

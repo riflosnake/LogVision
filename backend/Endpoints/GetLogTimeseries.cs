@@ -28,8 +28,8 @@ public static partial class LogsEndpoints
         var result = await swrCache.GetOrSaveAsync(
             key: filters.ToCacheKey(nameof(GetLogTimeseries)),
             factory: async (ct) => await GetLogsTimeseriesAsync(filters, options, configuration),
-            validExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Stale),
-            totalExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Total));
+            validExpiration: TimeSpan.FromSeconds(cacheOptions.Stale),
+            totalExpiration: TimeSpan.FromSeconds(cacheOptions.Total));
 
         return Results.Ok(result);
     }

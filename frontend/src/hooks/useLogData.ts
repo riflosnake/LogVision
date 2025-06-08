@@ -1,119 +1,91 @@
-import { useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { LogEntry, LogTypeCount, TimeSeriesData } from "../types";
 import { useLogStore } from "../store/logStore";
 import {
   fetchLogs,
   fetchTimeSeriesData,
   fetchTopLogTypes,
 } from "../services/api";
-import { pausePolling, startPolling } from "../utils/pollingManager";
+import { useCallback, useEffect } from "react";
 
 export function useLogData() {
   const {
-    logs,
-    filteredLogs,
-    timeSeriesData,
-    topLogTypes,
-    isLoading,
-    isPaused,
     chartFilters,
     logFilters,
-    error,
     setLogs,
-    setFilteredLogs,
     setTimeSeriesData,
     setTopLogTypes,
-    setIsLoading,
-    setError,
+    isPaused,
   } = useLogStore();
 
-  // Setup polling for charts when isPaused or chartFilters change
+  const queryClient = useQueryClient();
+
+  const logsQuery = useQuery<LogEntry[], Error>({
+    queryKey: ["logs", logFilters],
+    queryFn: () => fetchLogs(logFilters),
+    enabled: !!logFilters,
+    staleTime: 1_000,
+  });
+
+  const timeSeriesQuery = useQuery<TimeSeriesData[], Error>({
+    queryKey: ["timeSeries", chartFilters],
+    queryFn: () => fetchTimeSeriesData(chartFilters),
+    enabled: !!chartFilters,
+    refetchInterval: isPaused ? false : 5_000,
+    staleTime: 2_000,
+  });
+
+  const topTypesQuery = useQuery<LogTypeCount[], Error>({
+    queryKey: ["topLogTypes", chartFilters],
+    queryFn: () => fetchTopLogTypes(chartFilters),
+    enabled: !!chartFilters,
+    refetchInterval: isPaused ? false : 5_000,
+    staleTime: 2_000,
+  });
+
+  const refetchAll = useCallback(async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["logs"] }),
+      queryClient.invalidateQueries({ queryKey: ["timeSeries"] }),
+      queryClient.invalidateQueries({ queryKey: ["topLogTypes"] }),
+    ]);
+  }, [queryClient]);
+
   useEffect(() => {
-    if (!isPaused) {
-      startPolling(fetchChartData);
-    } else {
-      pausePolling();
+    if (logsQuery.data) {
+      setLogs(logsQuery.data);
     }
+  }, [logsQuery.data, setLogs]);
 
-    return () => {
-      // Optional: you may choose to stop polling only when all components unmount, or keep running
-      // stopPolling();
-    };
-  }, [isPaused, chartFilters]);
-
-  // Fetch chart data (time series and top log types)
-  const fetchChartData = async () => {
-    try {
-      const [timeSeriesData, topTypesData] = await Promise.all([
-        fetchTimeSeriesData(chartFilters),
-        fetchTopLogTypes(chartFilters),
-      ]);
-
-      setTimeSeriesData(timeSeriesData);
-      setTopLogTypes(topTypesData);
-      setError(null);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "An error occurred while fetching chart data"
-      );
+  useEffect(() => {
+    if (timeSeriesQuery.data) {
+      setTimeSeriesData(timeSeriesQuery.data);
     }
-  };
+  }, [setTimeSeriesData, timeSeriesQuery.data]);
 
-  // Fetch log data (for table) - called when log filters are applied
-  const fetchLogData = async () => {
-    setIsLoading(true);
-    try {
-      const logsData = await fetchLogs(logFilters);
-      setLogs(logsData);
-      setFilteredLogs(logsData);
-      setError(null);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "An error occurred while fetching logs"
-      );
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    if (topTypesQuery.data) {
+      setTopLogTypes(topTypesQuery.data);
     }
-  };
-
-  // Fetch all data at once (for initial load and refresh)
-  const fetchAllData = async () => {
-    setIsLoading(true);
-    try {
-      const [logsData, timeSeriesData, topTypesData] = await Promise.all([
-        fetchLogs(logFilters),
-        fetchTimeSeriesData(chartFilters),
-        fetchTopLogTypes(chartFilters),
-      ]);
-
-      setLogs(logsData);
-      setFilteredLogs(logsData);
-      setTimeSeriesData(timeSeriesData);
-      setTopLogTypes(topTypesData);
-      setError(null);
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "An error occurred while fetching data"
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [setTopLogTypes, topTypesQuery.data]);
 
   return {
-    logs,
-    filteredLogs,
-    timeSeriesData,
-    topLogTypes,
-    isLoading,
-    error,
-    fetchAllData,
-    fetchLogData,
-    fetchChartData,
+    logs: logsQuery.data,
+    timeSeriesData: timeSeriesQuery.data,
+    topLogTypes: topTypesQuery.data,
+    isLogsQueryLoading: logsQuery.isLoading,
+    isTimeSeriesQueryLoading: timeSeriesQuery.isLoading,
+    isTopTypesQueryLoading: topTypesQuery.isLoading,
+    isLoading:
+      logsQuery.isLoading ||
+      timeSeriesQuery.isLoading ||
+      topTypesQuery.isLoading,
+    error: logsQuery.error || timeSeriesQuery.error || topTypesQuery.error,
+    refetchAll,
+    refetchLogs: logsQuery.refetch,
+    refetchCharts: () => {
+      timeSeriesQuery.refetch();
+      topTypesQuery.refetch();
+    },
   };
 }
