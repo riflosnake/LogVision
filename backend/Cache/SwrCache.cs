@@ -1,38 +1,37 @@
 ﻿using Microsoft.Extensions.Caching.Hybrid;
-using System.Collections.Concurrent;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace LogInfoApi.Cache;
 
-public class SwrCache(HybridCache cache, ILogger<SwrCache> logger)
+public class SwrCache(
+    HybridCache hybridCache,
+    IMemoryCache memoryCache,
+    ILogger<SwrCache> logger)
 {
-    // TODO: ConcurrentDictionaries can grow indefinitely, consider implementing a cleanup strategy or using mechanism with expiration.
-    private readonly static ConcurrentDictionary<string, DateTime> LastRefreshTimePerKey = new();
-    private readonly static ConcurrentDictionary<string, SemaphoreSlim> SemaphorePerKey = new();
-
     public async Task<T> GetOrSaveAsync<T>(
         string key,
         Func<CancellationToken, ValueTask<T>> factory,
-        TimeSpan validExpirationTimeSpan,
-        TimeSpan totalExpirationTimeSpan)
+        TimeSpan validExpiration,
+        TimeSpan totalExpiration)
     {
-        if (ShouldRevalidate(key, validExpirationTimeSpan))
+        if (ShouldRevalidate(key, validExpiration))
         {
-            var semaphore = SemaphorePerKey.GetOrAdd(key, _ => new SemaphoreSlim(1, 1));
+            SemaphoreSlim semaphore = GetSemaphoreOfKey(key, totalExpiration);
 
             if (await semaphore.WaitAsync(0))
             {
                 try
                 {
-                    var newValue = await factory(default);
+                    var newValue = await factory(CancellationToken.None);
 
-                    await cache.SetAsync(key, newValue, new HybridCacheEntryOptions
+                    await hybridCache.SetAsync(key, newValue, new HybridCacheEntryOptions
                     {
-                        Expiration = totalExpirationTimeSpan
+                        Expiration = totalExpiration
                     });
 
-                    LastRefreshTimePerKey[key] = DateTime.Now;
+                    SaveLastRefreshTime(key, totalExpiration);
                 }
-                catch(Exception exception)
+                catch (Exception exception)
                 {
                     logger.LogError(exception, "Failed updating stale cache");
                 }
@@ -40,28 +39,49 @@ public class SwrCache(HybridCache cache, ILogger<SwrCache> logger)
                 {
                     semaphore.Release();
                 }
-            } 
+            }
         }
 
-        return await cache.GetOrCreateAsync(
+        return await hybridCache.GetOrCreateAsync(
                 key: key,
                 factory: async (ct) =>
                 {
                     var value = await factory(ct);
 
-                    LastRefreshTimePerKey[key] = DateTime.Now;
+                    SaveLastRefreshTime(key, totalExpiration);
 
                     return value;
                 },
                 options: new()
                 {
-                    Expiration = totalExpirationTimeSpan
+                    Expiration = totalExpiration
                 });
     }
 
-    private static bool ShouldRevalidate(string key, TimeSpan validExpirationTimeSpan)
-    {
-        return LastRefreshTimePerKey.TryGetValue(key, out var lastRefresh)
-               && lastRefresh.AddSeconds(validExpirationTimeSpan.TotalSeconds) < DateTime.Now;
-    }
+    private SemaphoreSlim GetSemaphoreOfKey(string key, TimeSpan totalExpiration)
+        => memoryCache.TryGetValue(ToSemaphoreKey(key), out SemaphoreSlim? existingSemaphore)
+                        ? existingSemaphore!
+                        : memoryCache.Set(
+                            key: ToSemaphoreKey(key),
+                            value: new SemaphoreSlim(1, 1),
+                            options: new MemoryCacheEntryOptions
+                            {
+                                AbsoluteExpirationRelativeToNow = totalExpiration
+                            });
+
+    private bool ShouldRevalidate(string key, TimeSpan validExpiration)
+        => memoryCache.TryGetValue(ToRefreshKey(key), out DateTime lastRefresh)
+               && lastRefresh.AddSeconds(validExpiration.TotalSeconds) < DateTime.Now;
+
+    private void SaveLastRefreshTime(string key, TimeSpan totalExpiration)
+        => memoryCache.Set(
+            key: ToRefreshKey(key),
+            value: DateTime.Now,
+            options: new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = totalExpiration
+            });
+
+    private static string ToSemaphoreKey(string key) => $"semaphore:{key}";
+    private static string ToRefreshKey(string key) => $"refresh:{key}";
 }

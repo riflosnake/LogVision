@@ -28,8 +28,8 @@ public static partial class LogsEndpoints
             logs = await swrCache.GetOrSaveAsync(
                 key: cacheKey,
                 factory: async (ct) => await SearchLogsAsync(filters, options, configuration),
-                validExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Stale),
-                totalExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Total));
+                validExpiration: TimeSpan.FromSeconds(cacheOptions.Stale),
+                totalExpiration: TimeSpan.FromSeconds(cacheOptions.Total));
         }
 
         logs = logs.Count == 0
