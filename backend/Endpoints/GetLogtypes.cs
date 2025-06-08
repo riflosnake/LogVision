@@ -29,8 +29,8 @@ public static partial class LogsEndpoints
             key: $"types-{filters.ToCacheKey(nameof(GetLogTypes))}",
             factory: async (ct) => await GetLogTypesAsync(filters, options, configuration)
             ,
-            validExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Stale),
-            totalExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Total));
+            validExpiration: TimeSpan.FromSeconds(cacheOptions.Stale),
+            totalExpiration: TimeSpan.FromSeconds(cacheOptions.Total));
 
         return Results.Ok(result);
     }
