@@ -1,80 +1,109 @@
 ﻿using Dapper;
+using LogInfoApi.Cache;
 using LogInfoApi.Dtos;
+using LogInfoApi.Options.Log;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.Options;
 using System.Text;
 
 namespace LogInfoApi.Endpoints;
 
 public static partial class LogsEndpoints
 {
-    public static Func<LogFilters, IConfiguration, HybridCache, Task<IResult>> GetLogs()
+    public static async Task<IResult> GetLogs(
+        LogFilters filters,
+        IOptions<LogOptions> options,
+        IConfiguration configuration,
+        SwrCache swrCache)
     {
-        return async (LogFilters filter, IConfiguration configuration, HybridCache cache) =>
+        if (filters is null)
+            return Results.BadRequest("Filter is required.");
+
+        List<LogEntryDto> logs = [];
+
+        var cacheOptions = options.Value.CacheOptions.GetLogs;
+
+        if (filters.ShouldCache(out var cacheKey) && cacheOptions.IsEnabled)
         {
-            if (filter == null)
-                return Results.BadRequest("Filter is required.");
+            logs = await swrCache.GetOrSaveAsync(
+                key: cacheKey,
+                factory: async (ct) => await SearchLogsAsync(filters, options, configuration),
+                validExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Stale),
+                totalExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Total));
+        }
 
-            var logs = await cache.GetOrCreateAsync(
-                key: filter.ToCacheKey(),
-                factory: async (ct) =>
-                {
-                    await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
+        logs = logs.Count == 0
+                   ? await SearchLogsAsync(filters, options, configuration)
+                   : logs;
 
-                    var sql = new StringBuilder(@"
-                    SELECT 
-                        CAST(LogId AS VARCHAR) AS Id,
-                        Timestamp,
-                        ISNULL(Message, '') AS Message,
-                        CASE WHEN Title IS NULL OR Title = '' THEN 'N/A' ELSE Title END AS Type,
-                        Severity,
-                        MachineName AS Machine,
-                        ISNULL(FormattedMessage, '') AS StackTrace,
-                        AppDomainName AS ApplicationName,
-                        ProcessName AS Source,
-                        NULL AS Count
-                    FROM Log
-                    WHERE 1 = 1
-                    ");
+        return Results.Ok(logs);
+    }
 
-                    var parameters = new DynamicParameters();
+    private async static Task<List<LogEntryDto>> SearchLogsAsync(
+        LogFilters filters,
+        IOptions<LogOptions> options,
+        IConfiguration configuration)
+    {
+        var logOptions = options.Value;
+        var columns = logOptions.Columns;
 
-                    if (!string.IsNullOrWhiteSpace(filter.SearchTerm))
-                    {
-                        sql.AppendLine("AND Message LIKE @SearchTerm");
-                        parameters.Add("@SearchTerm", $"%{filter.SearchTerm}%");
-                    }
+        var sql = new StringBuilder($@"
+                SELECT 
+                    CAST({columns.Id} AS VARCHAR) AS Id,
+                    {columns.Timestamp} AS Timestamp,
+                    ISNULL({columns.Message}, '') AS Message,
+                    CASE WHEN {columns.Title} IS NULL OR {columns.Title} = '' THEN 'N/A' ELSE {columns.Title} END AS Type,
+                    {columns.Severity} AS Severity,
+                    {columns.Machine} AS Machine,
+                    ISNULL({columns.StackTrace}, '') AS StackTrace,
+                    {columns.ApplicationName} AS ApplicationName,
+                    {columns.Source} AS Source,
+                    NULL AS Count
+                FROM {logOptions.TableName}
+                WHERE 1 = 1
+                ");
 
-                    if (filter.Severity?.Count > 0)
-                    {
-                        sql.AppendLine("AND LOWER(Severity) IN @Severities");
-                        parameters.Add("@Severities", filter.Severity.Select(s => s.ToString().ToLower()).ToArray());
-                    }
+        var parameters = new DynamicParameters();
 
-                    if (DateTime.TryParse(filter.FromDate, out var from))
-                    {
-                        sql.AppendLine("AND Timestamp >= @FromDate");
-                        parameters.Add("@FromDate", from);
-                    }
+        if (!string.IsNullOrWhiteSpace(filters.SearchTerm))
+        {
+            sql.AppendLine($"AND {columns.Message} LIKE @SearchTerm");
+            parameters.Add("@SearchTerm", $"%{filters.SearchTerm}%");
+        }
 
-                    if (DateTime.TryParse(filter.ToDate, out var to))
-                    {
-                        sql.AppendLine("AND Timestamp <= @ToDate");
-                        parameters.Add("@ToDate", to);
-                    }
+        if (filters.Severity?.Count > 0)
+        {
+            sql.AppendLine($"AND LOWER({columns.Severity}) IN @Severities");
 
-                    var skip = Math.Max((filter.Page - 1) * filter.PageSize, 0);
-                    var take = Math.Clamp(filter.PageSize, 1, 500);
+            var mapped = filters.Severity
+            .Select(s => s.ToString().ToLower())
+                .Select(s => logOptions.SeverityValues?.TryGetValue(s, out var mappedVal) == true ? mappedVal.ToLower() : s)
+                .ToArray();
 
-                    sql.AppendLine("ORDER BY Timestamp DESC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY");
-                    parameters.Add("@Skip", skip);
-                    parameters.Add("@Take", take);
+            parameters.Add("@Severities", mapped);
+        }
 
-                    return (await connection.QueryAsync<LogEntryDto>(sql.ToString(), parameters)).ToList();
-                },
-                options: null);
+        if (DateTime.TryParse(filters.FromDate, out var from))
+        {
+            sql.AppendLine($"AND {columns.Timestamp} >= @FromDate");
+            parameters.Add("@FromDate", from);
+        }
 
-            return Results.Ok(logs);
-        };
+        if (DateTime.TryParse(filters.ToDate, out var to))
+        {
+            sql.AppendLine($"AND {columns.Timestamp} <= @ToDate");
+            parameters.Add("@ToDate", to);
+        }
+
+        var skip = Math.Max((filters.Page - 1) * filters.PageSize, 0);
+        var take = Math.Clamp(filters.PageSize, 1, 500);
+
+        sql.AppendLine($"ORDER BY {columns.Timestamp} DESC OFFSET @Skip ROWS FETCH NEXT @Take ROWS ONLY");
+        parameters.Add("@Skip", skip);
+        parameters.Add("@Take", take);
+
+        await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
+
+        return [.. await connection.QueryAsync<LogEntryDto>(sql.ToString(), parameters)];
     }
 }

@@ -1,28 +1,55 @@
 ﻿using Dapper;
+using LogInfoApi.Cache;
 using LogInfoApi.Dtos;
+using LogInfoApi.Options.Log;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Caching.Hybrid;
+using Microsoft.Extensions.Options;
 
 namespace LogInfoApi.Endpoints;
 
 public static partial class LogsEndpoints
 {
-    public static Func<ChartFilters, IConfiguration, HybridCache, Task<IResult>> GetLogTimeseries()
+    public static async Task<IResult> GetLogTimeseries(
+        ChartFilters filters,
+        IOptions<LogOptions> options,
+        IConfiguration configuration,
+        SwrCache swrCache)
     {
-        return async (ChartFilters filter, IConfiguration configuration, HybridCache cache) =>
+        if (filters is null || filters.TimeRange <= 0)
+            return Results.BadRequest("Invalid filter or TimeRange.");
+
+        var cacheOptions = options.Value.CacheOptions.GetLogTimeseries;
+
+        if (!cacheOptions.IsEnabled)
         {
-            if (filter == null || filter.TimeRange <= 0)
-                return Results.BadRequest("Invalid filter or TimeRange.");
+            return Results.Ok(await GetLogsTimeseriesAsync(filters, options, configuration));
+        }
 
-            CalculateGraph(filter, out var bucketSize, out var start, out var end);
+        var result = await swrCache.GetOrSaveAsync(
+            key: filters.ToCacheKey(nameof(GetLogTimeseries)),
+            factory: async (ct) => await GetLogsTimeseriesAsync(filters, options, configuration),
+            validExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Stale),
+            totalExpirationTimeSpan: TimeSpan.FromSeconds(cacheOptions.Total));
 
-            var result = await cache.GetOrCreateAsync(
-                key: $"timeseries-{filter.ToCacheKey()}",
-                factory: async (ct) =>
-                {
-                    await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
+        return Results.Ok(result);
+    }
 
-                    var sql = @"
+    private static async Task<List<TimeSeriesDataDto>> GetLogsTimeseriesAsync(
+        ChartFilters filters,
+        IOptions<LogOptions> options,
+        IConfiguration configuration)
+    {
+        CalculateGraph(filters, out var bucketSize, out var start, out var end);
+
+        var logOptions = options.Value;
+
+        var tableName = logOptions.TableName;
+
+        var timestampColumn = logOptions.Columns.Timestamp;
+        var severityColumn = logOptions.Columns.Severity;
+        var severityMapping = logOptions.SeverityValues ?? [];
+
+        var sql = $@"
                 ;WITH TimeBuckets AS (
                     SELECT @Start AS BucketTime
                     UNION ALL
@@ -34,20 +61,26 @@ public static partial class LogsEndpoints
                     SELECT
                         DATEADD(
                             MINUTE,
-                            DATEDIFF(MINUTE, 0, Timestamp) / @BucketSize * @BucketSize,
+                            DATEDIFF(MINUTE, 0, {timestampColumn}) / @BucketSize * @BucketSize,
                             0
                         ) AS BucketTime,
-                        LOWER(Severity) AS Severity
-                    FROM Log
-                    WHERE Timestamp >= @Start AND Timestamp <= @End
-                    /** {SeverityFilter} **/
+                        LOWER({severityColumn}) AS Severity
+                    FROM {tableName}
+                    WHERE {timestampColumn} >= @Start AND {timestampColumn} <= @End
+                    /** SeverityFilter **/
                 )
                 SELECT
-                    CONVERT(VARCHAR, tb.BucketTime, 126) AS [Time],
-                    ISNULL(SUM(CASE WHEN fl.Severity = 'Error' THEN 1 ELSE 0 END), 0) AS Errors,
-                    ISNULL(SUM(CASE WHEN fl.Severity = 'Warning' THEN 1 ELSE 0 END), 0) AS Warnings,
-                    ISNULL(SUM(CASE WHEN fl.Severity = 'Information' THEN 1 ELSE 0 END), 0) AS Infos,
-                    ISNULL(SUM(CASE WHEN fl.Severity = 'Debug' THEN 1 ELSE 0 END), 0) AS Debugs
+                    CONVERT(VARCHAR, tb.BucketTime, 126) AS [Time],";
+
+        foreach (var severity in new[] { "Error", "Warning", "Information", "Debug" })
+        {
+            var severityValue = severityMapping.GetValueOrDefault(severity, severity.ToLower());
+            sql += $@"ISNULL(SUM(CASE WHEN fl.Severity = '{severityValue}' THEN 1 ELSE 0 END), 0) AS {severity}s,";
+        }
+
+        sql = sql.TrimEnd(',');
+
+        sql += @"
                 FROM TimeBuckets tb
                 LEFT JOIN FilteredLogs fl ON tb.BucketTime = fl.BucketTime
                 GROUP BY tb.BucketTime
@@ -55,27 +88,25 @@ public static partial class LogsEndpoints
                 OPTION (MAXRECURSION 0);
                 ";
 
-                    var parameters = new DynamicParameters();
+        var parameters = new DynamicParameters();
 
-                    parameters.Add("@Start", start);
-                    parameters.Add("@End", end);
-                    parameters.Add("@BucketSize", bucketSize);
+        parameters.Add("@Start", start);
+        parameters.Add("@End", end);
+        parameters.Add("@BucketSize", bucketSize);
 
-                    if (filter.Severity?.Count > 0)
-                    {
-                        sql = sql.Replace("/** {SeverityFilter} **/", "AND LOWER(Severity) IN @Severities");
-                        parameters.Add("@Severities", filter.Severity.Select(s => s.ToString().ToLower()).ToArray());
-                    }
-                    else
-                    {
-                        sql = sql.Replace("/** {SeverityFilter} **/", "");
-                    }
+        if (filters.Severity?.Count > 0)
+        {
+            sql = sql.Replace("/** SeverityFilter **/", $"AND LOWER({severityColumn}) IN @Severities");
+            parameters.Add("@Severities", filters.Severity.Select(s => s.ToString().ToLower()).ToArray());
+        }
+        else
+        {
+            sql = sql.Replace("/** SeverityFilter **/", "");
+        }
 
-                    return (await connection.QueryAsync<TimeSeriesDataDto>(sql, parameters)).ToList();
-                });
+        await using var connection = new SqlConnection(configuration.GetConnectionString("Database"));
 
-            return Results.Ok(result);
-        };
+        return [.. await connection.QueryAsync<TimeSeriesDataDto>(sql, parameters)];
     }
 
     private static void CalculateGraph(ChartFilters filter, out int bucketSize, out DateTime start, out DateTime end)

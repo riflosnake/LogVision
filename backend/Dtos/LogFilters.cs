@@ -1,4 +1,6 @@
-﻿namespace LogInfoApi.Dtos;
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace LogInfoApi.Dtos;
 
 public class LogFilters
 {
@@ -9,17 +11,31 @@ public class LogFilters
     public int Page { get; set; } = 1;
     public int PageSize { get; set; } = 50;
 
-    public string ToCacheKey()
+    public bool ShouldCache([NotNullWhen(true)] out string? cacheKey)
     {
-        var severityPart = Severity != null && Severity.Any()
-            ? string.Join("-", Severity.Select(s => s.ToLowerInvariant()).OrderBy(s => s))
-            : "none";
+        if (ShouldCache())
+        {
+            cacheKey = ToCacheKey();
+            return true;
+        }
 
-        return $"search:{SearchTerm ?? ""}_" +
-               $"from:{FromDate ?? ""}_" +
-               $"to:{ToDate ?? ""}_" +
-               $"severity:{severityPart}_" +
+        cacheKey = default;
+        return false;
+    }
+
+    private string ToCacheKey()
+    {
+        var severityPart = Severity == null || Severity.Count == 0
+        ? "all"
+        : string.Join("-", Severity.Select(s => s.ToLowerInvariant()).OrderBy(s => s));
+
+        return $"severity:{severityPart}_" +
                $"page:{Page}_" +
                $"pageSize:{PageSize}";
     }
+
+    private bool ShouldCache()
+        => string.IsNullOrWhiteSpace(SearchTerm) &&
+           string.IsNullOrWhiteSpace(FromDate) &&
+           string.IsNullOrWhiteSpace(ToDate);
 }

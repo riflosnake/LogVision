@@ -1,4 +1,6 @@
+using LogInfoApi.Cache;
 using LogInfoApi.Endpoints;
+using LogInfoApi.Options.Log;
 using Microsoft.Extensions.Caching.Hybrid;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -12,6 +14,8 @@ builder.Services.AddCors(config =>
                           .AllowAnyMethod()
                           .AllowAnyHeader());
 });
+
+builder.Services.AddLogOptions(builder.Configuration);
 
 builder.Services.AddAuthorization();
 
@@ -28,15 +32,17 @@ builder.Services.AddHybridCache(options =>
     };
 });
 
+builder.Services.AddSingleton<SwrCache>();
+
 var app = builder.Build();
 
 app.UseCors("log-api-policy");
 
 app.UseResponseCompression();
 
-app.MapPost("/logs", LogsEndpoints.GetLogs());
-app.MapPost("/logs/timeseries", LogsEndpoints.GetLogTimeseries());
-app.MapPost("/logs/types", LogsEndpoints.GetLogTypes());
+app.MapPost("/logs", LogsEndpoints.GetLogs);
+app.MapPost("/logs/timeseries", LogsEndpoints.GetLogTimeseries);
+app.MapPost("/logs/types", LogsEndpoints.GetLogTypes);
 
 app.UseHttpsRedirection();
 
