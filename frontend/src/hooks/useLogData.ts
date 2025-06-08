@@ -44,11 +44,11 @@ export function useLogData() {
   });
 
   const refetchAll = useCallback(async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["logs"] }),
-      queryClient.invalidateQueries({ queryKey: ["timeSeries"] }),
-      queryClient.invalidateQueries({ queryKey: ["topLogTypes"] }),
-    ]);
+    const keys = ["logs", "timeSeries", "topLogTypes"];
+
+    await Promise.all(
+      keys.map((key) => queryClient.invalidateQueries({ queryKey: [key] }))
+    );
   }, [queryClient]);
 
   useEffect(() => {

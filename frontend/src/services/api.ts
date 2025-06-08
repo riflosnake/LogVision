@@ -7,13 +7,9 @@ import {
   LogSeverity,
 } from "../types";
 
-// This is a mock API service that would be replaced with actual
-// API calls to your .NET backend
 const baseUrl = "http://localhost:8080";
 
-// In a real implementation, this would call your .NET backend
 export async function fetchLogs(filters: LogFilters): Promise<LogEntry[]> {
-  // For now, we'll simulate this with mock data
   try {
     const response = await fetch(`${baseUrl}/logs`, {
       method: "POST",
@@ -25,7 +21,7 @@ export async function fetchLogs(filters: LogFilters): Promise<LogEntry[]> {
     return await response.json();
   } catch (error) {
     console.error("Error fetching logs:", error);
-    // Return mock data for development
+
     return generateMockLogs(filters);
   }
 }
@@ -44,7 +40,7 @@ export async function fetchTimeSeriesData(
     return await response.json();
   } catch (error) {
     console.error("Error fetching time series data:", error);
-    // Return mock data for development
+
     return generateMockTimeSeriesData(filters);
   }
 }
@@ -63,7 +59,7 @@ export async function fetchTopLogTypes(
     return await response.json();
   } catch (error) {
     console.error("Error fetching top log types:", error);
-    // Return mock data for development
+
     return generateMockTopLogTypes();
   }
 }

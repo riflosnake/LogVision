@@ -101,7 +101,7 @@ const LogTable: React.FC<LogTableProps> = ({ logs, isLoading }) => {
         ),
       }),
     ],
-    [setSelectedLog]
+    [columnHelper, setSelectedLog]
   );
 
   const table = useReactTable({
