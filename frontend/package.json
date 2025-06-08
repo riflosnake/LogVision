@@ -10,16 +10,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.80.6",
+    "@tanstack/react-table": "^8.13.2",
+    "clsx": "^2.1.0",
+    "date-fns": "^3.3.1",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "recharts": "^2.12.0",
-    "@tanstack/react-table": "^8.13.2",
-    "date-fns": "^3.3.1",
     "react-syntax-highlighter": "^15.5.0",
     "react-toastify": "^10.0.4",
-    "zustand": "^4.5.0",
-    "clsx": "^2.1.0"
+    "recharts": "^2.12.0",
+    "zustand": "^4.5.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
