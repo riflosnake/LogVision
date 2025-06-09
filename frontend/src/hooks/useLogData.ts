@@ -20,8 +20,14 @@ export function useLogData() {
 
   const queryClient = useQueryClient();
 
+  // TODO: Disable fetching on change of searchTerm
+  // Best UX would be to debounce the search term input
+  // and only fetch logs when the user stops typing for a while.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { searchTerm, ...filtersWithoutSearchTerm } = logFilters;
+
   const logsQuery = useQuery<LogEntry[], Error>({
-    queryKey: ["logs", logFilters],
+    queryKey: ["logs", filtersWithoutSearchTerm],
     queryFn: () => fetchLogs(logFilters),
     enabled: !!logFilters,
     staleTime: 1_000,
