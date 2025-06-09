@@ -7,13 +7,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import {
-  AlertOctagon,
-  ChevronDown,
-  ChevronUp,
-  FileDown,
-  List,
-} from "lucide-react";
+import { AlertOctagon, ChevronDown, ChevronUp, FileDown, List } from "../icons";
 import { LogEntry } from "../types";
 import {
   formatDateTime,
@@ -101,7 +95,7 @@ const LogTable: React.FC<LogTableProps> = ({ logs, isLoading }) => {
         ),
       }),
     ],
-    [setSelectedLog]
+    [columnHelper, setSelectedLog]
   );
 
   const table = useReactTable({

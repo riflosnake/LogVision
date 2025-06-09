@@ -9,7 +9,7 @@ import {
   Area,
   AreaChart,
 } from "recharts";
-import { LineChart as LineChartIcon } from "lucide-react";
+import { LineChartIcon } from "../icons";
 import { formatChartTime } from "../utils/formatters";
 import { TimeSeriesData } from "../types";
 

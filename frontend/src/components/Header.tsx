@@ -6,7 +6,7 @@ import {
   PlayCircle,
   RefreshCw,
   Settings,
-} from "lucide-react";
+} from "../icons";
 import { useLogStore } from "../store/logStore";
 
 interface HeaderProps {

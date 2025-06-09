@@ -1,5 +1,5 @@
 import React from "react";
-import { BarChart3, Clock } from "lucide-react";
+import { BarChart3, Clock } from "../icons";
 import { useLogStore } from "../store/logStore";
 import { LogSeverity } from "../types";
 
