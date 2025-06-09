@@ -22,7 +22,7 @@
 
 | Frontend                 | Backend                      |
 |-------------------------|------------------------------|
-| React                   | .NET 9             |
+| React 19              | .NET 9             |
 | TypeScript              | C#                          |
 | Tailwind   | Minimal APIs and Dapper (for lowest overhead)       |
 
