@@ -1,5 +1,5 @@
 import React from "react";
-import { Search, Calendar, Filter } from "lucide-react";
+import { Search, Calendar, Filter } from "../icons";
 import { useLogStore } from "../store/logStore";
 import { LogSeverity } from "../types";
 import { useLogData } from "../hooks/useLogData";

@@ -1,5 +1,5 @@
 import React from "react";
-import { BarChart } from "lucide-react";
+import { BarChart } from "../icons";
 import { LogTypeCount } from "../types";
 import { getSeverityBgColor } from "../utils/formatters";
 

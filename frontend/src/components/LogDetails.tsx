@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { X } from "lucide-react";
+import { X } from "../icons";
 import { useLogStore } from "../store/logStore";
 import { formatDateTime, getSeverityColor } from "../utils/formatters";
 import SyntaxHighlighter from "react-syntax-highlighter";
